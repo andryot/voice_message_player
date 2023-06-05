@@ -75,15 +75,23 @@ class _VoiceMessageState extends State<VoiceMessage>
   String _remainingTime = '';
   AnimationController? _controller;
 
+  /* @override
+  Future<void> onDispose() async {
+    _player.stop();
+    stream.cancel();
+    _controller!.dispose();
+  } */
+
   @override
   void initState() {
     widget.formatDuration ??= (Duration duration) {
-      return duration.toString().substring(2, 11);
+      return duration.toString().substring(2, 7);
     };
 
     _setDuration();
     super.initState();
     stream = _player.onPlayerStateChanged.listen((event) {
+      if (!mounted) return;
       switch (event) {
         case PlayerState.stopped:
           break;
@@ -96,7 +104,7 @@ class _VoiceMessageState extends State<VoiceMessage>
         case PlayerState.completed:
           _player.seek(const Duration(milliseconds: 0));
           setState(() {
-            duration = _audioDuration!.inMilliseconds;
+            duration = _audioDuration!.inMinutes;
             _remainingTime = widget.formatDuration!(_audioDuration!);
           });
           break;
@@ -105,9 +113,9 @@ class _VoiceMessageState extends State<VoiceMessage>
       }
     });
     _player.onPositionChanged.listen(
-      (Duration p) => setState(
-        () => _remainingTime = p.toString().substring(2, 11),
-      ),
+      (Duration p) => mounted
+          ? setState(() => _remainingTime = widget.formatDuration!(p))
+          : null,
     );
   }
 
@@ -335,22 +343,24 @@ class _VoiceMessageState extends State<VoiceMessage>
         _controller!.reset();
         _isPlaying = false;
         x2 = false;
-        setState(() {});
+        if (mounted) setState(() {});
       }
     });
     _setAnimationConfiguration(_audioDuration!);
   }
 
   void _setAnimationConfiguration(Duration audioDuration) async {
-    setState(() {
-      _remainingTime = widget.formatDuration!(audioDuration);
-    });
+    if (mounted) {
+      setState(() {
+        _remainingTime = widget.formatDuration!(audioDuration);
+      });
+    }
     debugPrint("_setAnimationConfiguration $_remainingTime");
     _completeAnimationConfiguration();
   }
 
   void _completeAnimationConfiguration() =>
-      setState(() => _audioConfigurationDone = true);
+      mounted ? setState(() => _audioConfigurationDone = true) : null;
 
   // void _toggle2x() {
   //   x2 = !x2;
@@ -363,6 +373,7 @@ class _VoiceMessageState extends State<VoiceMessage>
   void _changePlayingStatus() async {
     if (widget.onPlay != null) widget.onPlay!();
     _isPlaying ? _stopPlaying() : _startPlaying();
+    if (!mounted) return;
     setState(() => _isPlaying = !_isPlaying);
   }
 
@@ -381,6 +392,7 @@ class _VoiceMessageState extends State<VoiceMessage>
     _controller?.value = (noiseWidth) * duration / maxDurationForSlider;
     _remainingTime = widget.formatDuration!(_audioDuration!);
     await _player.seek(Duration(milliseconds: duration));
+    if (!mounted) return;
     setState(() {});
   }
 }
